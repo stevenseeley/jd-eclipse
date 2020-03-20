@@ -11,6 +11,7 @@ import java.io.File;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.jd.core.v1.ClassFileToJavaSourceDecompiler;
 import org.jd.core.v1.api.loader.Loader;
@@ -38,7 +39,7 @@ public class JDSourceMapper extends SourceMapper {
 	private final static int    JAVA_SOURCE_SUFFIX_LENGTH = 5;
 
 	private final static ClassFileToJavaSourceDecompiler DECOMPILER = new ClassFileToJavaSourceDecompiler();
-	
+	private static ConcurrentHashMap<String, char[]> classcache = new ConcurrentHashMap<String, char[]>(1024);
 	private File basePath;
 	
 	private LineNumberStringBuilderPrinter printer = new LineNumberStringBuilderPrinter();
@@ -68,14 +69,18 @@ public class JDSourceMapper extends SourceMapper {
 		
 		if ((source == null) && javaSourcePath.toLowerCase().endsWith(JAVA_SOURCE_SUFFIX)) {	
 			String internalTypeName = javaSourcePath.substring(0, javaSourcePath.length()-JAVA_SOURCE_SUFFIX_LENGTH);
-			
-			// Decompile class file
-			try {
-				source = decompile(this.basePath.getAbsolutePath(), internalTypeName);
-			} catch (Exception e) {
-				JavaDecompilerPlugin.getDefault().getLog().log(new Status(
-					Status.ERROR, JavaDecompilerPlugin.PLUGIN_ID, 
-					0, e.getMessage(), e));
+		
+			source = classcache.get(internalTypeName);
+			if (source == null) {
+				// Decompile class file
+				try {
+					source = decompile(this.basePath.getAbsolutePath(), internalTypeName);
+					classcache.putIfAbsent(internalTypeName, source);
+				} catch (Exception e) {
+					JavaDecompilerPlugin.getDefault().getLog().log(new Status(
+						Status.ERROR, JavaDecompilerPlugin.PLUGIN_ID, 
+						0, e.getMessage(), e));
+				}
 			}
 		}
 
